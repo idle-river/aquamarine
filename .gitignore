@@ -13,3 +13,6 @@ devenv.local.yaml
 
 # Nix builds
 result
+
+# Old WAL files
+aquamarine.wal

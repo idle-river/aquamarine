@@ -3,13 +3,28 @@ use std::io::{Error, ErrorKind};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub enum Packet {
+pub enum ClientPacket {
     Set { key: String, value: String },
     Get { key: String },
     Delete { key: String },
 }
 
-type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+#[derive(Debug, Serialize, Deserialize)]
+pub enum ServerPacket {
+    GetRes { value: String },
+    SetRes,
+    DeleteRes,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum Packet {
+    Client(ClientPacket),
+    Server(ServerPacket),
+    Ping,
+    Pong,
+}
+
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 pub async fn write_to_stream<P, S>(stream: &mut S, payload: P) -> Result<()>
 where
