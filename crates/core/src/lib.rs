@@ -1,3 +1,5 @@
+pub mod packets;
+
 use std::{
     collections::HashMap,
     fs::{File, OpenOptions},
