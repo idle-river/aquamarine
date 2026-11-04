@@ -3,17 +3,27 @@
 version = 4
 
 [[package]]
+name = "aquamarine-cli"
+version = "0.1.0"
+dependencies = [
+ "aquamarine-core",
+ "tokio",
+]
+
+[[package]]
 name = "aquamarine-core"
 version = "0.1.0"
 dependencies = [
  "postcard",
  "serde",
+ "tokio",
 ]
 
 [[package]]
 name = "aquamarine-server"
 version = "0.1.0"
 dependencies = [
+ "aquamarine-core",
  "tokio",
 ]
 
