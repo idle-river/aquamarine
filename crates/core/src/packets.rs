@@ -11,9 +11,10 @@ pub enum ClientPacket {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ServerPacket {
-    GetRes { value: String },
+    GetRes { value: Option<String> },
     SetRes,
-    DeleteRes,
+    DeleteRes { deleted: bool },
+    Error { message: String },
 }
 
 #[derive(Debug, Serialize, Deserialize)]

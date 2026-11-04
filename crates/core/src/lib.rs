@@ -89,6 +89,7 @@ impl KVStore {
     }
 
     pub fn delete(&mut self, key: String) -> Result<()> {
+        self.append_to_wal(&Logline::Delete { key: key.clone() })?;
         let mut map = self
             .data
             .write()

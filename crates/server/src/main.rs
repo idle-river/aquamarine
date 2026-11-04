@@ -26,6 +26,18 @@ async fn main() {
     }
 }
 
+macro_rules! if_let_or_return {
+    ($value:expr, $pattern:pat, $code:block) => {{
+        if let $pattern = $value {
+            $code
+        } else {
+            Packet::Server(ServerPacket::Error {
+                message: "failed to get KV db lock".into(),
+            })
+        }
+    }};
+}
+
 async fn handle_client(
     mut stream: TcpStream,
     addr: SocketAddr,
@@ -36,28 +48,27 @@ async fn handle_client(
         println!("Received packet from {addr}: {payload:?}");
 
         let response = match payload {
-            Packet::Client(ClientPacket::Set { key, value }) => {
-                let mut store = store
-                    .write()
-                    .map_err(|error| std::io::Error::other(error.to_string()))?;
-                store.set(key, value)?;
-                Packet::Server(ServerPacket::SetRes)
-            }
-            Packet::Client(ClientPacket::Get { key }) => {
-                let value = store
-                    .read()
-                    .map_err(|error| std::io::Error::other(error.to_string()))?
-                    .get(key)
-                    .unwrap_or_default();
-                Packet::Server(ServerPacket::GetRes { value })
-            }
-            Packet::Client(ClientPacket::Delete { key }) => {
-                let mut store = store
-                    .write()
-                    .map_err(|error| std::io::Error::other(error.to_string()))?;
-                store.delete(key)?;
-                Packet::Server(ServerPacket::DeleteRes)
-            }
+            Packet::Client(c) => match c {
+                ClientPacket::Set { key, value } => {
+                    if_let_or_return!(store.write(), Ok(mut store), {
+                        store.set(key, value)?;
+                        Packet::Server(ServerPacket::SetRes)
+                    })
+                }
+                ClientPacket::Get { key } => {
+                    if_let_or_return!(store.read(), Ok(store), {
+                        Packet::Server(ServerPacket::GetRes {
+                            value: store.get(key),
+                        })
+                    })
+                }
+                ClientPacket::Delete { key } => {
+                    if_let_or_return!(store.write(), Ok(mut store), {
+                        let deleted = store.delete(key).is_ok();
+                        Packet::Server(ServerPacket::DeleteRes { deleted })
+                    })
+                }
+            },
             Packet::Ping => Packet::Pong,
             Packet::Pong => continue,
             Packet::Server(_) => unreachable!(),

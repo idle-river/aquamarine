@@ -72,8 +72,20 @@ async fn main() {
                 Packet::Pong => {}
 
                 Packet::Server(s) => match s {
-                    ServerPacket::GetRes { value } => println!("{value}"),
-                    ServerPacket::SetRes | ServerPacket::DeleteRes => {}
+                    ServerPacket::GetRes { value } => {
+                        if let Some(value) = value {
+                            println!("{value}")
+                        } else {
+                            println!("None")
+                        }
+                    }
+                    ServerPacket::DeleteRes { deleted } => {
+                        println!("{}", deleted);
+                    }
+                    ServerPacket::Error { message } => {
+                        println!("{message}");
+                    }
+                    ServerPacket::SetRes => {}
                 },
 
                 // Client packets
