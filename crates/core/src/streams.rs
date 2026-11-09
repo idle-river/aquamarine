@@ -26,7 +26,6 @@ where
 {
     let length = stream.read_u32_le().await?;
     if length > MAX_FRAME_LEN {
-        // swap for your own error type
         return Err("frame too large: {length} bytes".into());
     }
 
