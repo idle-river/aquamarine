@@ -1,5 +1,5 @@
 {
-  description = "Rust Starter Flake";
+  description = "a kv store with built in WAL log";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
