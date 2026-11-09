@@ -1,21 +1,22 @@
 use std::{
     collections::{HashMap, HashSet},
-    fs::File,
-    io::BufWriter,
+    fs::{File, OpenOptions},
+    io::{BufReader, BufWriter},
+    path::PathBuf,
     sync::{Mutex, RwLock},
 };
 
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
-pub enum LogLine<'a, 'b> {
+pub enum LogLine {
     Set {
-        key: &'a str,
-        value: &'b str,
+        key: String,
+        value: String,
         constant: bool,
     },
     Delete {
-        key: &'a str,
+        key: String,
     },
 }
 
@@ -28,15 +29,22 @@ pub struct KVStore {
 pub type Result<'a, T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync + 'a>>;
 
 impl KVStore {
-    pub fn new(wal: File) -> Self {
-        // Add WAL replay
-        let file = BufWriter::new(wal);
+    pub fn new(wal: PathBuf) -> Result<'static, Self> {
+        let mut map = HashMap::new();
+        let mut constants = HashSet::new();
 
-        Self {
+        if wal.exists() {
+            Self::replay_wal(wal.clone(), &mut map, &mut constants);
+        }
+
+        let file = OpenOptions::new().append(true).create(true).open(wal)?;
+        let reader = BufWriter::new(file);
+
+        Ok(Self {
             data: RwLock::new(HashMap::new()),
             constants: RwLock::new(HashSet::new()),
-            wal_file: Mutex::new(file),
-        }
+            wal_file: Mutex::new(reader),
+        })
     }
 
     fn append_to_wal(&self, log: &LogLine) -> Result<'_, ()> {
@@ -46,10 +54,43 @@ impl KVStore {
         Ok(())
     }
 
+    fn replay_wal(
+        wal: PathBuf,
+        map: &mut HashMap<String, String>,
+        constants: &mut HashSet<String>,
+    ) {
+        let mut reader = BufReader::new(File::open(wal).unwrap());
+        let mut buf: &mut [u8] = &mut [0u8; 1024];
+        while let Ok((logline, (r, s))) =
+            postcard::from_io::<LogLine, BufReader<File>>((reader, buf))
+        {
+            reader = r;
+            buf = s;
+
+            match logline {
+                LogLine::Set {
+                    key,
+                    value,
+                    constant,
+                } => {
+                    if constant {
+                        map.insert(key.clone(), value);
+                        constants.insert(key);
+                    } else {
+                        map.insert(key, value);
+                    }
+                }
+                LogLine::Delete { key } => {
+                    map.remove(&key);
+                }
+            }
+        }
+    }
+
     pub fn set(&mut self, key: String, value: String) -> Result<'_, ()> {
         let _ = self.append_to_wal(&LogLine::Set {
-            key: &key,
-            value: &value,
+            key: key.clone(),
+            value: value.clone(),
             constant: false,
         });
 
@@ -69,8 +110,8 @@ impl KVStore {
         }
 
         let _ = self.append_to_wal(&LogLine::Set {
-            key: &key,
-            value: &value,
+            key: key.clone(),
+            value: value.clone(),
             constant: true,
         });
 
@@ -81,7 +122,7 @@ impl KVStore {
     }
 
     pub fn delete(&mut self, key: String) -> Result<'_, ()> {
-        let _ = self.append_to_wal(&LogLine::Delete { key: &key });
+        let _ = self.append_to_wal(&LogLine::Delete { key: key.clone() });
 
         let data = &mut *self.data.write().map_err(|e| e.to_string())?;
         data.remove(&key);
